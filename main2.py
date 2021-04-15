@@ -8,6 +8,7 @@ from scipy.spatial import distance as dist
 from datetime import datetime
 from datetime import date
 import requests
+import math
 
 import numpy as np
 ser = serial.Serial()
@@ -29,16 +30,72 @@ face_locations = []
 face_encodings = []
 face_names = []
 process_this_frame = True
-headers = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-}
-
-data = '{"people":["fred", "mark", "andrew"]}'
-
-response = requests.put('https://jsonblob.com/api/jsonBlob/f3a76b25-9ab7-11eb-84c0-63657ea94f77', headers=headers, data=data)
-# Create an Empty window
 counter = 0
+Rooms = []
+Cameras = []
+Room = []
+Camera = []
+Faces = [[]]
+def initialize_room():
+    Room[0] = input("enter number of walls")
+    Room[1] = input("enter ratio of walls")
+    Room[2] = input("Enter Number of Cameras in room")
+    Room[3] = input("Enter Room Name")
+    Rooms.append(Room)
+def initialize_camera():
+    Camera[0] = input("Enter WallID")
+    Camera[1] = input("Enter Wall Position")
+    Camera[2] = input("Enter CameraID")
+    Camera[3] = input("Enter Room Name")
+    Camera[4] = input("Enter Camera IP")
+    Cameras.append(Camera)
+def getCurrentFrames(Room):
+    Frames = [[]]
+    framez = []
+    for x in Cameras:
+        for y in x:
+            if y == Room:
+                cap = cv2.VideoCapture('http://' + x[4] + ':8080/video')
+                ret, frame = cap.read()
+                framez[0] = frame
+                framez[1] = x[2]
+                Frames.append(framez)
+
+    return Frames
+def SetFaceObject(CameraID, FaceName, Theta):
+    for index, x in enumerate(Faces):
+        if x[0] == FaceName:
+            x.append(CameraID)
+            x.append(Theta)
+            Faces[index] = x
+
+def initFaces():
+    for x in known_face_names:
+        Face = []
+        Face[0] = x
+        Faces.append(Face)
+
+def CalculateLocation(FaceName):
+    thetas = []
+    cameraids = []
+    for c in Faces:
+        if c[0] == FaceName:
+            for index, x in enumerate(c):
+                if index % 2 == 0 and index != 0:
+                    thetas.append(x)
+                if index == 0:
+                    a = 0
+                else:
+                    cameraids.append()
+    for index, x in enumerate(cameraids):
+        theta = thetas[index]
+        for index2, z in enumerate(cameraids):
+            theta2 = thetas[index]
+            if z != x:
+                pos = CalcTriangle(x, theta, z, theta2)
+
+
+
 def get_ear(eye):
     # compute the euclidean distances between the two sets of
     # vertical eye landmarks (x, y)-coordinates
@@ -55,32 +112,7 @@ def get_ear(eye):
     # return the eye aspect ratio
     return ear
 
-# Resize this window
-
-while True:
-
-    # Take screenshot using PyAutoGUI
-    img = pyautogui.screenshot()
-
-    # Convert the screenshot to a numpy array
-    frame2 = np.array(img)
-    frame1 = frame2
-    # Convert it from BGR(Blue, Green, Red) to
-    # RGB(Red, Green, Blue)
-    known_face_encodings = [
-        obama_face_encoding,
-      #  mom_face_encoding,
-        ramesh_face_encoding
-       # dad_face_encoding
-    ]
-    known_face_names = [
-        "Manan Gupta",
-       # "Anita Gupta",
-       # "Manish Gupta",
-        "Ramesh"
-    ]
-
-    frame2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2RGB)
+def ComputeFace(frame2):
     face_landmarks_list = face_recognition.face_landmarks(frame2)
     if process_this_frame:
         # Find all the faces and face encodings in the current frame of video
@@ -105,6 +137,82 @@ while True:
                 name = known_face_names[best_match_index]
 
             face_names.append(name)
+    return face_locations, face_encodings, face_names
+
+z = 0
+initialize_room()
+while z < Room[2]:
+    initialize_camera()
+    z = z + 1
+known_face_encodings = [
+    obama_face_encoding,
+  #  mom_face_encoding,
+    ramesh_face_encoding
+   # dad_face_encoding
+]
+known_face_names = [
+    "Manan Gupta",
+   # "Anita Gupta",
+   # "Manish Gupta",
+    "Ramesh"
+]
+
+initFaces()
+def CalcTriangle(Camera1, theta1, Camera2, theta2):
+    pos = [0, 0]
+    camera1pos = [0, 0]
+    camera2pos = [0, 0]
+    for x in Cameras:
+        if x[2] == Camera1:
+            Camera1 = x
+    for x in Cameras:
+        if x[2] == Camera2:
+            Camera2 = x
+    s = Room[1]
+    Wall1 = s[0]
+    Wall2 = s[1]
+
+    if Camera1[0] == 1:
+        camera1pos = [0, Wall1*Camera1[1]]
+    if Camera1[0] == 2:
+        camera1pos = [Wall1*Camera1[1], 0]
+    if Camera1[0] == 3:
+        camera1pos = [0, Wall1*(1-Camera1[1])]
+    if Camera1[0] == 4:
+        camera1pos = [Wall1*(1-Camera1[1]), 0]
+    if Camera2[0] == 1:
+        camera2pos = [0, Wall2*Camera2[1]]
+    if Camera2[0] == 2:
+        camera2pos = [Wall2*Camera2[1], 0]
+    if Camera2[0] == 3:
+        camera2pos = [0, Wall2*(1-Camera2[1])]
+    if Camera2[0] == 4:
+        camera2pos = [Wall2*(1-Camera2[1]), 0]
+    x = camera1pos[0] - camera2pos[0]
+    y = camera1pos[1] - camera2pos[1]
+    Distance = (x)**2 + (y)**2
+    Distance = Distance**0.5
+    angley = math.atan(x/y)
+    anglex = 90- angley
+
+    return pos
+
+while True:
+
+    CurrentFrames = getCurrentFrames()
+    for x in CurrentFrames:
+        frame = np.array(x[0])
+        face_locations, face_encodings, face_names = ComputeFace(frame)
+        SetFaceObject(x[1], face_names, face_locations)
+
+
+
+while True:
+    cap = cv2.VideoCapture('http://192.168.1.19:8080/video')
+    ret, img = cap.read()
+    frame2 = np.array(img)
+    frame1 = frame2
+
     # Display the results
     y = False
     y2 = False
@@ -174,7 +282,7 @@ while True:
     if y and y2 and counter > 1:
         counter = 0
         print("Gate Opened")
-        ser.write(b'1776')
+        #ser.write(b'1776')
         time.sleep(30)
 
 
